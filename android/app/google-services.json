@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "119505937989",
+    "project_id": "kueue-1636",
+    "storage_bucket": "kueue-1636.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:119505937989:android:63be814869c8988797a52c",
+        "android_client_info": {
+          "package_name": "com.example.kueue"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "119505937989-0olugrb7msl1tr16s2729hsmd3uvsbtm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA5peTZky4jxF9lxSJYUxb3BVzrim0NyWs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "119505937989-0olugrb7msl1tr16s2729hsmd3uvsbtm.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "119505937989-75540g1539egr6ns6ei4st9feptlp9r3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.kueue"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
