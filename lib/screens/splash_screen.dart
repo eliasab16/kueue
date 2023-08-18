@@ -6,8 +6,8 @@ import 'package:kueue/screens/screens.dart';
 
 class SplashScreen extends StatefulWidget {
   static Route get route => MaterialPageRoute(
-        builder: (context) => const SplashScreen(),
-      );
+      builder: (context) => const SplashScreen(),
+    );
   const SplashScreen({Key? key}) : super(key: key);
 
   @override

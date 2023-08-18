@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase;
 import 'package:flutter/material.dart';
 import 'package:kueue/screens/screens.dart';
 
@@ -17,7 +17,7 @@ class SignInScreen extends StatefulWidget {
 
 
 class _SignInScreenState extends State<SignInScreen> {
-  final auth = FirebaseAuth.instance;
+  final auth = firebase.FirebaseAuth.instance;
 
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -54,7 +54,7 @@ class _SignInScreenState extends State<SignInScreen> {
           // Navigate to home screen
           await Navigator.of(context).pushReplacement(HomeScreen.route);
         }
-      } on FirebaseAuthException catch (e) {
+      } on firebase.FirebaseAuthException catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.message ?? 'Auth error')),
         );
@@ -64,9 +64,11 @@ class _SignInScreenState extends State<SignInScreen> {
           const SnackBar(content: Text('An error occured')),
         );
       }
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
