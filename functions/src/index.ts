@@ -9,6 +9,12 @@
 
 import {onRequest} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+
+admin.initializeApp();
+
+export { changeStudentQueueStatus, deleteStudentFromQueue } from "./queueOperations";
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import '../app.dart';
 
@@ -49,7 +50,7 @@ class _SessionScreenState extends State<SessionScreen> {
 
     // we need to separate students into in-progress and in-queue
     for (final item in sessionQueue) {
-      if (item['help_in_progress'] == true) {
+      if (item['queue_status'] == true) {
         inProgressList_.add(item);
       } else {
         inQueueList_.add(item);
@@ -81,7 +82,7 @@ class _SessionScreenState extends State<SessionScreen> {
 
       // we need to separate students into in-progress and in-queue
       for (final item in sessionQueue) {
-        if (item['help_in_progress'] == true) {
+        if (item['queue_status'] == true) {
           inProgressList_.add(item);
         } else {
           inQueueList_.add(item);
@@ -149,7 +150,7 @@ class _SessionScreenState extends State<SessionScreen> {
               children: [
                 const Text("In progress:"),
                 inProgressList.isNotEmpty
-                  ? UsersList(usersList: inProgressList, ranked: false)
+                  ? UsersList(usersList: inProgressList, ranked: false, sessionId: widget.sessionId)
                   : const Center(child: CircularProgressIndicator()),
               ],
             ),
@@ -157,7 +158,7 @@ class _SessionScreenState extends State<SessionScreen> {
               children: [
                 const Text("In queue:"),
                 inQueueList.isNotEmpty
-                  ? UsersList(usersList: inQueueList, ranked: true)
+                  ? UsersList(usersList: inQueueList, ranked: true, sessionId: widget.sessionId)
                   : const Center(child: CircularProgressIndicator()),
               ],
             ),
@@ -172,10 +173,12 @@ class UsersList extends StatelessWidget {
     super.key,
     required this.usersList,
     required this.ranked,
+    required this.sessionId,
   });
 
   final List usersList;
   final bool ranked;
+  final String sessionId;
 
   @override
   Widget build(BuildContext context) {
@@ -200,7 +203,13 @@ class UsersList extends StatelessWidget {
               final userRef = user['user_ref'] as DocumentReference;
               final displayName = user['display_name'] as String;
         
-              return StudentTile(index: index, ranked: ranked, displayName: displayName);
+              return StudentTile(
+                index: index,
+                ranked: ranked,
+                userRef: userRef,
+                displayName: displayName,
+                sessionId: sessionId,
+                );
             },
           ),
       ),
@@ -214,11 +223,47 @@ class StudentTile extends StatelessWidget {
     required this.index,
     required this.ranked,
     required this.displayName,
+    required this.userRef,
+    required this.sessionId,
   });
 
   final int index;
   final bool ranked;
+  final DocumentReference userRef;
   final String displayName;
+  final String sessionId;
+
+  Future<void> changeStudentQueueStatus(DocumentReference userRef, bool newStatus) async {
+    try {
+      final result =
+          await FirebaseFunctions.instance.httpsCallable('changeStudentQueueStatus').call(
+            <String, dynamic>{
+            'documentId': sessionId, // Replace with the actual document ID
+            'userRef': userRef,
+            'newStatus': newStatus,
+            }
+          );
+    } on FirebaseFunctionsException catch (error) {
+      // TODO: handle errors appropriately
+      logger.d(error.code);
+      logger.d(error.message);
+    }
+  }
+
+  Future<void> dequeueStudent(DocumentReference userRef) async {
+    try {
+      final result = 
+        await FirebaseFunctions.instance.httpsCallable('deleteStudentFromQueue').call(
+          <String, dynamic>{
+            'documentId': sessionId,
+            'userRef': userRef,
+          }
+        );
+    } on FirebaseFunctionsException catch (error) {
+      logger.d(error.code);
+      logger.d(error.message);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -249,7 +294,9 @@ class StudentTile extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextButton(
-                    onPressed: () => logger.d("student removed"),
+                    onPressed: () async {
+                      await changeStudentQueueStatus(userRef, false);
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color.fromARGB(255, 188, 188, 188),
                       foregroundColor: Colors.white,
@@ -260,7 +307,9 @@ class StudentTile extends StatelessWidget {
                     child: const Text("X"),
                   ),
                   TextButton(
-                    onPressed: () => logger.d("student picked"),
+                    onPressed: () => {
+
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color.fromARGB(255, 188, 188, 188),
                       foregroundColor: Colors.white,
