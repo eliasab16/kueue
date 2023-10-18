@@ -3,6 +3,10 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import '../app.dart';
 
+typedef ChangeStatusCallback = Future<void> Function(DocumentReference userRef, bool newStatus);
+typedef DequeueCallback = Future<void> Function(DocumentReference userRef);
+
+
 class SessionScreen extends StatefulWidget {
   static Route routeWithSessionId({required String sessionId}) {
     return MaterialPageRoute(
@@ -42,31 +46,7 @@ class _SessionScreenState extends State<SessionScreen> {
         .get();
 
     final sessionData_ = snapshot.data() as Map<String, dynamic>;
-    final sessionQueue = sessionData_['queue'] as List<dynamic>;
-    final inProgressList_ = <dynamic>[];
-    final inQueueList_ = <dynamic>[];
-    final List<dynamic> hosts = sessionData_['hosts'] as List<dynamic>;
-    final List<String> hostDisplayNames_ = hosts.map((host) => host['display_name'] as String).toList();
-
-    // we need to separate students into in-progress and in-queue
-    for (final item in sessionQueue) {
-      if (item['queue_status'] == true) {
-        inProgressList_.add(item);
-      } else {
-        inQueueList_.add(item);
-      }
-    }
-
-    inQueueList_.sort((a, b) =>
-        (a['joining_time'] as Timestamp)
-            .compareTo(b['joining_time'] as Timestamp));
-
-    setState(() {
-      inProgressList = inProgressList_;
-      inQueueList = inQueueList_;
-      sessionData = sessionData_;
-      hostDisplayNames = hostDisplayNames_;
-    });
+    updateSessionData(sessionData_);
   }
 
   void setupSessionStream() {
@@ -74,6 +54,11 @@ class _SessionScreenState extends State<SessionScreen> {
 
     doc.snapshots().listen((snapshot) {
       final sessionData_ = snapshot.data() as Map<String, dynamic>;
+      updateSessionData(sessionData_);
+    });
+  }
+
+  void updateSessionData(Map<String, dynamic> sessionData_) {
       final sessionQueue = sessionData_['queue'] as List<dynamic>;
       final inProgressList_ = <dynamic>[];
       final inQueueList_ = <dynamic>[];
@@ -100,7 +85,65 @@ class _SessionScreenState extends State<SessionScreen> {
         sessionData = sessionData_;
         hostDisplayNames = hostDisplayNames_;
       });
-    });
+    }
+
+  //******** */
+  //******** */
+  Future<void> changeStudentQueueStatus(DocumentReference userRef, bool newStatus) async {
+    dynamic result;
+    try {
+      final sessionData_ = sessionData;
+      for (final user in sessionData_['queue']) {
+        final iterUserRef = user['user_ref'] as DocumentReference;
+        if (iterUserRef.path == userRef.path) {
+          user['queue_status'] = newStatus;
+          break;
+        }
+      }
+
+      updateSessionData(sessionData_);
+
+      result =
+        await FirebaseFunctions.instance.httpsCallable('changeStudentQueueStatus').call(
+          {
+          'documentId': widget.sessionId, // Replace with the actual document ID
+          'userRef': userRef.path,
+          'newStatus': newStatus,
+          }
+        );
+        // perform same update locally for instant changes - rather than wait for database changes
+    } on FirebaseFunctionsException catch (error) {
+      // TODO: handle errors appropriately
+      logger.d('Error: ${error.code} ${error.message}');
+    }
+  }
+
+  Future<void> dequeueStudent(DocumentReference userRef) async {
+    try {
+      final updatedQueue = List<Map<String, dynamic>>.from(sessionData['queue']);
+
+      for (int i = 0; i < updatedQueue.length; i++) {
+        final user = updatedQueue[i];
+        final iterUserRef = user['user_ref'] as DocumentReference;
+        if (iterUserRef.path == userRef.path) {
+          updatedQueue.removeAt(i);
+          break;
+        }
+      }
+
+      // no need to call updateSessionData since we're just removing items, no sorting is needed
+      sessionData['queue'] = updatedQueue;
+
+      final result =
+        await FirebaseFunctions.instance.httpsCallable('deleteStudentFromQueue').call(
+          {
+            'documentId': widget.sessionId,
+            'userRef': userRef,
+          }
+        );
+    } on FirebaseFunctionsException catch (error) {
+      logger.d('Error: ${error.code} ${error.message}');
+    }
   }
 
   @override
@@ -149,17 +192,22 @@ class _SessionScreenState extends State<SessionScreen> {
             Column(
               children: [
                 const Text("In progress:"),
-                inProgressList.isNotEmpty
-                  ? UsersList(usersList: inProgressList, ranked: false, sessionId: widget.sessionId)
-                  : const Center(child: CircularProgressIndicator()),
+                UsersList(
+                  usersList: inProgressList,
+                  ranked: false,
+                  dequeueStudent: dequeueStudent,
+                  changeStudentQueueStatus: changeStudentQueueStatus,
+                  )
               ],
             ),
             Column(
               children: [
                 const Text("In queue:"),
-                inQueueList.isNotEmpty
-                  ? UsersList(usersList: inQueueList, ranked: true, sessionId: widget.sessionId)
-                  : const Center(child: CircularProgressIndicator()),
+                UsersList(
+                  usersList: inQueueList,
+                  ranked: true,
+                  dequeueStudent: dequeueStudent,
+                  changeStudentQueueStatus: changeStudentQueueStatus,)
               ],
             ),
           ],
@@ -173,12 +221,14 @@ class UsersList extends StatelessWidget {
     super.key,
     required this.usersList,
     required this.ranked,
-    required this.sessionId,
+    required this.changeStudentQueueStatus,
+    required this.dequeueStudent
   });
 
   final List usersList;
   final bool ranked;
-  final String sessionId;
+  final ChangeStatusCallback changeStudentQueueStatus;
+  final DequeueCallback dequeueStudent;
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +258,8 @@ class UsersList extends StatelessWidget {
                 ranked: ranked,
                 userRef: userRef,
                 displayName: displayName,
-                sessionId: sessionId,
+                dequeueStudent: dequeueStudent,
+                changeStudentQueueStatus: changeStudentQueueStatus,
                 );
             },
           ),
@@ -224,46 +275,16 @@ class StudentTile extends StatelessWidget {
     required this.ranked,
     required this.displayName,
     required this.userRef,
-    required this.sessionId,
+    required this.changeStudentQueueStatus,
+    required this.dequeueStudent
   });
 
   final int index;
   final bool ranked;
   final DocumentReference userRef;
   final String displayName;
-  final String sessionId;
-
-  Future<void> changeStudentQueueStatus(DocumentReference userRef, bool newStatus) async {
-    try {
-      final result =
-          await FirebaseFunctions.instance.httpsCallable('changeStudentQueueStatus').call(
-            <String, dynamic>{
-            'documentId': sessionId, // Replace with the actual document ID
-            'userRef': userRef,
-            'newStatus': newStatus,
-            }
-          );
-    } on FirebaseFunctionsException catch (error) {
-      // TODO: handle errors appropriately
-      logger.d(error.code);
-      logger.d(error.message);
-    }
-  }
-
-  Future<void> dequeueStudent(DocumentReference userRef) async {
-    try {
-      final result = 
-        await FirebaseFunctions.instance.httpsCallable('deleteStudentFromQueue').call(
-          <String, dynamic>{
-            'documentId': sessionId,
-            'userRef': userRef,
-          }
-        );
-    } on FirebaseFunctionsException catch (error) {
-      logger.d(error.code);
-      logger.d(error.message);
-    }
-  }
+  final ChangeStatusCallback changeStudentQueueStatus;
+  final DequeueCallback dequeueStudent;
 
   @override
   Widget build(BuildContext context) {
@@ -295,7 +316,7 @@ class StudentTile extends StatelessWidget {
                 children: [
                   TextButton(
                     onPressed: () async {
-                      await changeStudentQueueStatus(userRef, false);
+                      await dequeueStudent(userRef);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color.fromARGB(255, 188, 188, 188),
@@ -307,8 +328,8 @@ class StudentTile extends StatelessWidget {
                     child: const Text("X"),
                   ),
                   TextButton(
-                    onPressed: () => {
-
+                    onPressed: () async {
+                      changeStudentQueueStatus(userRef, ranked);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color.fromARGB(255, 188, 188, 188),

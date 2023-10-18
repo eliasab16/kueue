@@ -1,24 +1,15 @@
 import * as admin from 'firebase-admin';
-import * as functions from 'firebase-functions';
-import { user } from 'firebase-functions/v1/auth';
 
-const {logger} = require("firebase-functions");
 const {onRequest} = require("firebase-functions/v2/https");
-const {onDocumentCreated} = require("firebase-functions/v2/firestore");
-
-
-const {initializeApp} = require("firebase-admin/app");
-const {getFirestore} = require("firebase-admin/firestore");
 
 const firestore = admin.firestore();
 
 export const changeStudentQueueStatus = onRequest(async (req: any, res: any) => {
     try {
-        const requestData = req.query;
-
+        const requestData = req.body.data;
         const documentId = requestData.documentId;
         const userRef = requestData.userRef;
-        const newStatus: boolean = requestData.newStatus;
+        const newStatus = requestData.newStatus;
 
         const docRef = firestore.collection('sessions').doc(documentId);
         const doc = await docRef.get();
@@ -34,9 +25,10 @@ export const changeStudentQueueStatus = onRequest(async (req: any, res: any) => 
 
         for (let index = 0; index < queueArray.length; index++) {
             const studentObject = queueArray[index];
+            const refPath = studentObject.user_ref._path.segments.join('/');
 
-            if (studentObject.userRef == userRef) {
-                studentObject.queueStatus = newStatus;
+            if (refPath == userRef) {
+                studentObject.queue_status = newStatus;
                 break;
             }
         }
@@ -44,7 +36,7 @@ export const changeStudentQueueStatus = onRequest(async (req: any, res: any) => 
         await docRef.update({ queue: queueArray });
         res.status(200).send('Queue array updated successfully');
     } catch (error) {
-        console.error('Error updating queue array:', error);
+        console.error('Error while updating queue array:', req.body);
         res.status(500).send('Internal Server Error');
     }
 })
@@ -52,7 +44,7 @@ export const changeStudentQueueStatus = onRequest(async (req: any, res: any) => 
 // TODO: make sure race conditions are handled properly
 export const deleteStudentFromQueue = onRequest(async (req: any, res: any) => {
     try {
-        const requestData = req.query;
+        const requestData = req.body.data;
 
         const documentId = requestData.documentId;
         const userRef = requestData.userRef;
@@ -70,8 +62,9 @@ export const deleteStudentFromQueue = onRequest(async (req: any, res: any) => {
 
         for (let index = 0; index < queueArray.length; index++) {
             const studentObject = queueArray[index];
+            const refPath = studentObject.user_ref._path.segments.join('/');
 
-            if (studentObject.userRef == userRef) {
+            if (refPath == userRef) {
                 queueArray.splice(index, 1);
                 break;
             }
