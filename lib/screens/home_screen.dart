@@ -67,16 +67,14 @@ class _SignOutButton extends StatefulWidget {
               onPressed: _signOut,
               style: TextButton.styleFrom(
                 textStyle: const TextStyle(
-                  fontSize: 16, // Adjust the font size as needed
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  // You can customize other text styles here
                 ),
-                foregroundColor: Colors.blue, // Text color
-                backgroundColor: Colors.grey[300], // Background color
+                foregroundColor: Colors.blue,
+                backgroundColor: Colors.grey[300],
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  // You can customize the button's shape here
                 ),
               ),
               child: const Text('Sign out'),

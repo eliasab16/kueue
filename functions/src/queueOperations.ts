@@ -4,9 +4,13 @@ const {onRequest} = require("firebase-functions/v2/https");
 
 const firestore = admin.firestore();
 
+/**
+ * Changes queue status to move student between in-progress and in-queue lists
+ */
 export const changeStudentQueueStatus = onRequest(async (req: any, res: any) => {
     try {
         const requestData = req.body.data;
+        
         const documentId = requestData.documentId;
         const userRef = requestData.userRef;
         const newStatus = requestData.newStatus;
